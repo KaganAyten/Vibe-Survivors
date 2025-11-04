@@ -35,10 +35,10 @@ public class TPSCameraController : MonoBehaviour
 
     private float currentYaw = 0f; // Yatay aç?
     private float currentPitch = 20f; // Dikey aç?
-    
+
     private float targetYaw = 0f;
     private float targetPitch = 20f;
-    
+
     private float currentDistance;
     private Vector3 currentVelocity = Vector3.zero;
     private float yawVelocity = 0f;
@@ -46,67 +46,67 @@ public class TPSCameraController : MonoBehaviour
 
     private void Awake()
     {
-      currentDistance = distance;
+        currentDistance = distance;
 
         // Input Actions'? ayarla
         if (playerActions != null)
-     {
+        {
             var actionMap = playerActions.FindActionMap("PlayerMap");
-     if (actionMap != null)
+            if (actionMap != null)
             {
-     lookAction = actionMap.FindAction("Look");
+                lookAction = actionMap.FindAction("Look");
                 zoomAction = actionMap.FindAction("Zoom");
             }
-   }
+        }
 
         // Ba?lang?ç rotasyonunu ayarla
         if (target != null)
         {
-  Vector3 angles = transform.eulerAngles;
+            Vector3 angles = transform.eulerAngles;
             currentYaw = angles.y;
-     currentPitch = angles.x;
-    targetYaw = currentYaw;
+            currentPitch = angles.x;
+            targetYaw = currentYaw;
             targetPitch = currentPitch;
         }
 
         // Cursor'u kilitle
         Cursor.lockState = CursorLockMode.Locked;
-     Cursor.visible = false;
-}
+        Cursor.visible = false;
+    }
 
     private void OnEnable()
     {
- if (lookAction != null)
+        if (lookAction != null)
         {
             lookAction.Enable();
         }
 
-   if (zoomAction != null)
+        if (zoomAction != null)
         {
-        zoomAction.Enable();
-      zoomAction.performed += OnZoom;
+            zoomAction.Enable();
+            zoomAction.performed += OnZoom;
         }
-  }
+    }
 
     private void OnDisable()
     {
-   if (lookAction != null)
+        if (lookAction != null)
         {
-       lookAction.Disable();
-   }
+            lookAction.Disable();
+        }
 
         if (zoomAction != null)
         {
             zoomAction.performed -= OnZoom;
             zoomAction.Disable();
- }
+        }
     }
 
     private void OnZoom(InputAction.CallbackContext context)
     {
         float scrollValue = context.ReadValue<float>();
-      distance = Mathf.Clamp(distance - scrollValue * zoomSpeed * 0.1f, minDistance, maxDistance);
-}
+        distance = Mathf.Clamp(distance - scrollValue * zoomSpeed * 0.1f, minDistance, maxDistance);
+    }
 
     private void LateUpdate()
     {
@@ -114,64 +114,64 @@ public class TPSCameraController : MonoBehaviour
             return;
 
         // Fare inputunu al
-    Vector2 lookInput = Vector2.zero;
+        Vector2 lookInput = Vector2.zero;
         if (lookAction != null)
         {
-lookInput = lookAction.ReadValue<Vector2>();
+            lookInput = lookAction.ReadValue<Vector2>();
         }
 
         // Kamera aç?lar?n? güncelle
-  targetYaw += lookInput.x * mouseSensitivity;
+        targetYaw += lookInput.x * mouseSensitivity;
         targetPitch -= lookInput.y * mouseSensitivity;
-      targetPitch = Mathf.Clamp(targetPitch, minVerticalAngle, maxVerticalAngle);
+        targetPitch = Mathf.Clamp(targetPitch, minVerticalAngle, maxVerticalAngle);
 
         // Smooth rotasyon
-     currentYaw = Mathf.SmoothDampAngle(currentYaw, targetYaw, ref yawVelocity, rotationSmoothTime);
-     currentPitch = Mathf.SmoothDampAngle(currentPitch, targetPitch, ref pitchVelocity, rotationSmoothTime);
+        currentYaw = Mathf.SmoothDampAngle(currentYaw, targetYaw, ref yawVelocity, rotationSmoothTime);
+        currentPitch = Mathf.SmoothDampAngle(currentPitch, targetPitch, ref pitchVelocity, rotationSmoothTime);
 
         // Kamera pozisyonunu hesapla
         Quaternion rotation = Quaternion.Euler(currentPitch, currentYaw, 0f);
         Vector3 targetPosition = target.position + offset;
-        
+
         // Kameran?n hedef pozisyonu (karakterin arkas?nda)
         Vector3 desiredPosition = targetPosition - (rotation * Vector3.forward * distance);
 
         // Çarp??ma kontrolü
-    float finalDistance = distance;
-   if (checkCollision)
+        float finalDistance = distance;
+        if (checkCollision)
         {
             Vector3 direction = desiredPosition - targetPosition;
-    if (Physics.Raycast(targetPosition, direction.normalized, out RaycastHit hit, distance, collisionLayers))
-        {
-      finalDistance = Mathf.Clamp(hit.distance - collisionOffset, minDistance, distance);
-  }
- }
+            if (Physics.Raycast(targetPosition, direction.normalized, out RaycastHit hit, distance, collisionLayers))
+            {
+                finalDistance = Mathf.Clamp(hit.distance - collisionOffset, minDistance, distance);
+            }
+        }
 
         // Final pozisyon
- Vector3 finalPosition = targetPosition - (rotation * Vector3.forward * finalDistance);
-        
-    // Smooth pozisyon geçi?i
+        Vector3 finalPosition = targetPosition - (rotation * Vector3.forward * finalDistance);
+
+        // Smooth pozisyon geçi?i
         transform.position = Vector3.SmoothDamp(transform.position, finalPosition, ref currentVelocity, positionSmoothTime);
-        
-// Kameray? hedefe bakt?r
-     transform.LookAt(targetPosition);
+
+        // Kameray? hedefe bakt?r
+        transform.LookAt(targetPosition);
     }
 
     // ESC tu?uyla cursor'u göster/gizle (debug için)
     private void Update()
     {
         if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
-      {
-       if (Cursor.lockState == CursorLockMode.Locked)
-          {
-         Cursor.lockState = CursorLockMode.None;
-      Cursor.visible = true;
-    }
-    else
+        {
+            if (Cursor.lockState == CursorLockMode.Locked)
             {
-        Cursor.lockState = CursorLockMode.Locked;
-    Cursor.visible = false;
-        }
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+            else
+            {
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+            }
         }
     }
 
@@ -181,9 +181,9 @@ lookInput = lookAction.ReadValue<Vector2>();
         if (target == null)
             return;
 
-  Gizmos.color = Color.yellow;
-    Gizmos.DrawWireSphere(target.position + offset, 0.3f);
-        
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(target.position + offset, 0.3f);
+
         Gizmos.color = Color.blue;
         Gizmos.DrawLine(target.position + offset, transform.position);
     }
