@@ -1,11 +1,14 @@
 using UnityEngine;
 
 /// <summary>
-/// Oyuncu karakteri - Character s?n?f?ndan türetilmi?
-/// PlayerMovementController ile birlikte çal???r
+/// Oyuncu karakteri - Character sýnýfýndan türetilmiþ
+/// PlayerMovementController ile birlikte çalýþýr
 /// </summary>
 public class Player : Character
 {
+    [Header("Player Settings")]
+    [SerializeField] private bool addStartingWeapon = false; // Inspector'dan kontrol edilebilir
+
     protected override void Awake()
     {
         base.Awake();
@@ -13,11 +16,18 @@ public class Player : Character
 
     private void Start()
     {
-        // Oyun ba?lay?nca otomatik sald?r?ya ba?la
-        if (currentWeapon != null)
+        // Sadece starting weapon eklemek istiyorsan ve silah yoksa ekle
+        if (addStartingWeapon && WeaponCount == 0)
+        {
+            AddWeapon(new SwordWeapon(this));
+            Debug.Log("?? Starting weapon (Sword) added!");
+        }
+
+        // Sadece silah varsa otomatik saldýrýya baþla
+        if (WeaponCount > 0)
         {
             StartAttacking();
-            Debug.Log("??? Auto-attack started!");
+            Debug.Log("?? Player auto-attack started!");
         }
     }
 
@@ -25,7 +35,7 @@ public class Player : Character
     {
         base.Initialize();
 
-        // Oyuncuya özel ba?lang?ç de?erleri
+        // Oyuncuya özel baþlangýç deðerleri
         movementSpeed = 5f;
         baseHealth = 100f;
         attackSpeed = 1f;
@@ -38,11 +48,6 @@ public class Player : Character
     protected override void OnStatUpdated(StatType statType, float value)
     {
         Debug.Log($"?? Player stat updated: {statType} by {value}");
-    }
-
-    protected override void OnAttackPerformed()
-    {
-        Debug.Log("?? Player attacked!");
     }
 
     protected override void OnDamageTaken(float damage)
@@ -59,7 +64,7 @@ public class Player : Character
     {
         Debug.Log("?? Player died! Game Over!");
 
-        // Hareket ve sald?r?y? durdur
+        // Hareket ve saldýrýyý durdur
         PlayerMovementController movementController = GetComponent<PlayerMovementController>();
         if (movementController != null)
         {
@@ -67,14 +72,25 @@ public class Player : Character
         }
     }
 
-    protected override void OnWeaponEquipped(Weapon weapon)
+    protected override void OnWeaponAdded(Weapon weapon)
     {
-        Debug.Log($"?? Player equipped {weapon.name}!");
-
-        // Otomatik sald?r?y? ba?lat
-        if (!isAttacking)
+        Debug.Log($"?? Player equipped {weapon.WeaponType}! Total: {WeaponCount}");
+        
+        // Ýlk silah eklendiðinde otomatik saldýrýya baþla
+        if (WeaponCount == 1 && !isAttacking)
         {
             StartAttacking();
+        }
+    }
+
+    protected override void OnWeaponRemoved(Weapon weapon)
+    {
+        Debug.Log($"??? Player removed {weapon.WeaponType}! Remaining: {WeaponCount}");
+        
+        // Hiç silah kalmadýysa saldýrýyý durdur
+        if (WeaponCount == 0)
+        {
+            StopAttacking();
         }
     }
 
@@ -108,13 +124,13 @@ public class Player : Character
 
     private void OnLevelUp()
     {
-        Debug.Log($"?? Level Up! Now level {currentLevel}!");
+        Debug.Log($"?? Level Up! Now level {currentLevel} !");
 
-        // Level up bonuslar?
+        // Level up bonuslarý
         UpdateStat(StatType.BaseHealth, 10f, true);
         UpdateStat(StatType.BaseDamage, 2f, true);
 
-        // Can? doldur
+        // Caný doldur
         currentHealth = baseHealth;
     }
 }

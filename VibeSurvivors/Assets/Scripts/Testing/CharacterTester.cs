@@ -23,11 +23,11 @@ public class CharacterTester : MonoBehaviour
             return;
         }
 
-        // Mouse0 ile sald?r?y? ba?lat/durdur
+        // Mouse0 ile saldýrýyý baþlat/durdur
         if (Input.GetKeyDown(attackKey))
         {
             player.StartAttacking();
-            Debug.Log("??? Started attacking!");
+            Debug.Log("?? Started attacking!");
         }
 
         if (Input.GetKeyUp(attackKey))
@@ -35,24 +35,48 @@ public class CharacterTester : MonoBehaviour
             player.StopAttacking();
             Debug.Log("??? Stopped attacking!");
         }
-         
 
-        // H tu?u ile can yenile
+        // K tuþu ile hasar al
+        if (Input.GetKeyDown(takeDamageKey))
+        {
+            player.TakeDamage(20f);
+        }
+
+        // H tuþu ile can yenile
         if (Input.GetKeyDown(healKey))
         {
             player.Heal(30f);
         }
 
-        // X tu?u ile XP ekle
+        // X tuþu ile XP ekle
         if (Input.GetKeyDown(addXPKey))
         {
             player.AddXP(50f);
         }
 
-        // G tu?u ile gold ekle
+        // G tuþu ile gold ekle
         if (Input.GetKeyDown(addGoldKey))
         {
             player.AddGold(25);
+        }
+
+        // Weapon ekleme tuþlarý
+        if (Input.GetKeyDown(KeyCode.Q))
+        {
+            player.AddWeapon(new SwordWeapon(player));
+            Debug.Log("?? Sword added!");
+        }
+
+        if (Input.GetKeyDown(KeyCode.W))
+        {
+            player.AddWeapon(new ArrowWeapon(player));
+            Debug.Log("?? Arrow added!");
+        }
+
+        if (Input.GetKeyDown(KeyCode.E))
+        {
+            player.AddWeapon(new HammerWeapon(player));
+            Debug.Log("?? Hammer added!");
         }
 
         // Stat güncelleme testleri
@@ -86,7 +110,7 @@ public class CharacterTester : MonoBehaviour
         if (player == null)
             return;
 
-        GUILayout.BeginArea(new Rect(10, 10, 350, 400));
+        GUILayout.BeginArea(new Rect(10, 10, 400, 550));
         GUILayout.Box("=== Character System Tester ===");
 
         // Stats
@@ -98,7 +122,22 @@ public class CharacterTester : MonoBehaviour
         GUILayout.Label($"?? Level: {player.CurrentLevel}");
         GUILayout.Label($"? XP: {player.CurrentXP:F0}");
         GUILayout.Label($"?? Gold: {player.CurrentGold}");
-        GUILayout.Label($"??? Weapon: {(player.CurrentWeapon != null ? player.CurrentWeapon.name : "None")}");
+        GUILayout.Label($"??? Weapons: {player.WeaponCount}");
+
+        GUILayout.Space(5);
+
+        // Weapon List - ENUM ile göster!
+        if (player.WeaponCount > 0)
+        {
+            GUILayout.Label("=== Active Weapons ===");
+            int index = 1;
+            foreach (var weapon in player.Weapons)
+            {
+                string readyStatus = weapon.IsReady ? "?" : "?";
+                GUILayout.Label($"{index}. {weapon.WeaponType} {readyStatus} - DMG: {weapon.ItemDamage:F1} | RNG: {weapon.AttackRange:F1} | CD: {weapon.Cooldown:F1}s");
+                index++;
+            }
+        }
 
         GUILayout.Space(10);
 
@@ -109,6 +148,15 @@ public class CharacterTester : MonoBehaviour
         GUILayout.Label($"[{healKey}] - Heal");
         GUILayout.Label($"[{addXPKey}] - Add XP");
         GUILayout.Label($"[{addGoldKey}] - Add Gold");
+        
+        GUILayout.Space(5);
+        GUILayout.Label("=== Add Weapons (Runtime) ===");
+        GUILayout.Label("[Q] - Add Sword (Medium)");
+        GUILayout.Label("[W] - Add Arrow (Fast/Long)");
+        GUILayout.Label("[E] - Add Hammer (Slow/Strong)");
+        
+        GUILayout.Space(5);
+        GUILayout.Label("=== Stat Upgrades ===");
         GUILayout.Label("[1] - Increase Movement Speed");
         GUILayout.Label("[2] - Increase Attack Speed");
         GUILayout.Label("[3] - Increase Damage");

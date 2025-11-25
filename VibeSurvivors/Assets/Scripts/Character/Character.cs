@@ -1,4 +1,6 @@
-﻿using UnityEngine;
+﻿using System.Linq;
+using UnityEngine;
+using System.Collections.Generic;
 
 /// <summary>
 /// Tüm karakterler için temel sınıf (Oyuncu ve düşmanlar için)
@@ -20,14 +22,14 @@ public abstract class Character : MonoBehaviour
     [SerializeField] protected float currentXP = 0f;
     [SerializeField] protected int currentGold = 0;
 
-    [Header("Combat")]
-    [SerializeField] protected Weapon currentWeapon;
+    [Header("Combat - Weapons")]
+    // Weapon listesi - runtime'da silahlar eklenecek - ARTIK INSPECTOR'DA GÖRÜNÜR!
+    [SerializeField] protected List<Weapon> weapons = new List<Weapon>();
 
     // Runtime değerler
     [SerializeField] protected float currentHealth;
     protected bool isDead = false;
     protected bool isAttacking = false;
-    protected float attackTimer = 0f; // Saldırı zamanlayıcısı
 
     #region Properties
 
@@ -44,7 +46,8 @@ public abstract class Character : MonoBehaviour
     public int CurrentLevel => currentLevel;
     public float CurrentXP => currentXP;
     public int CurrentGold => currentGold;
-    public Weapon CurrentWeapon => currentWeapon;
+    public IReadOnlyList<Weapon> Weapons => weapons;
+    public int WeaponCount => weapons.Count;
     public bool IsAlive => !isDead && currentHealth > 0f;
     public bool IsDead => isDead;
 
@@ -57,18 +60,36 @@ public abstract class Character : MonoBehaviour
 
     protected virtual void Update()
     {
-        // Saldırı sistemi - Update'te çalışır böylece attack speed değişiklikleri anında etkiler
-        if (isAttacking && !isDead && currentWeapon != null)
-        {
-            attackTimer -= Time.deltaTime;
+        // Weapon cooldown'larını güncelle
+        UpdateWeaponCooldowns();
 
-            if (attackTimer <= 0f)
-            {
-                Attack();
-                // Attack Speed = saniyede kaç saldırı
-                // Bekleme süresi = 1 / attack speed
-                attackTimer = 1f / Mathf.Max(0.1f, attackSpeed);
-            }
+        // Saldırı sistemi - tüm silahları tetikle
+        if (isAttacking && !isDead)
+        {
+            TriggerAllWeapons();
+        }
+    }
+
+    /// <summary>
+    /// Tüm silahların cooldown'larını günceller
+    /// </summary>
+    private void UpdateWeaponCooldowns()
+    {
+        foreach (var weapon in weapons)
+        {
+            weapon.UpdateCooldownTimer(Time.deltaTime);
+        }
+    }
+
+    /// <summary>
+    /// Tüm silahları tetikler (kendi cooldown'larına göre)
+    /// </summary>
+    private void TriggerAllWeapons()
+    {
+        foreach (var weapon in weapons)
+        {
+            // Her silah kendi cooldown'una göre tetiklenir
+            weapon.TryTrigger();
         }
     }
 
@@ -83,7 +104,7 @@ public abstract class Character : MonoBehaviour
         currentGold = 0;
         isDead = false;
         isAttacking = false;
-        attackTimer = 0f;
+        weapons.Clear();
 
         Debug.Log($"✨ {gameObject.name} initialized - Health: {currentHealth}/{baseHealth}");
     }
@@ -118,10 +139,14 @@ public abstract class Character : MonoBehaviour
             case StatType.BaseDamage:
                 baseDamage = isAdditive ? baseDamage + value : baseDamage * value;
                 baseDamage = Mathf.Max(0f, baseDamage);
+                // Tüm silahlara yeni hasarı uygula
+                UpdateAllWeaponDamage();
                 break;
 
             case StatType.AttackDamage:
                 attackDamage = isAdditive ? attackDamage + value : attackDamage * value;
+                // Tüm silahlara yeni hasarı uygula
+                UpdateAllWeaponDamage();
                 break;
 
             case StatType.ProjectileCount:
@@ -144,18 +169,29 @@ public abstract class Character : MonoBehaviour
     }
 
     /// <summary>
-    /// Saldırı başlatır - Attack Speed frekansında silahı tetikler
+    /// Tüm silahların hasarını günceller
+    /// </summary>
+    private void UpdateAllWeaponDamage()
+    {
+        float totalDamage = baseDamage + attackDamage;
+        foreach (var weapon in weapons)
+        {
+            weapon.UpdateItemDamage(totalDamage);
+        }
+    }
+
+    /// <summary>
+    /// Saldırı başlatır - Tüm silahları sürekli tetikler
     /// </summary>
     public virtual void StartAttacking()
     {
-        if (isDead || currentWeapon == null)
+        if (isDead)
             return;
 
         if (!isAttacking)
         {
             isAttacking = true;
-            attackTimer = 0f; // Hemen saldırsın
-            Debug.Log($"🗡️ {gameObject.name} started attacking!");
+            Debug.Log($"🗡️ {gameObject.name} started attacking with {weapons.Count} weapon(s)!");
         }
     }
 
@@ -165,26 +201,55 @@ public abstract class Character : MonoBehaviour
     public virtual void StopAttacking()
     {
         isAttacking = false;
-        attackTimer = 0f;
         Debug.Log($"🛡️ {gameObject.name} stopped attacking!");
     }
 
     /// <summary>
-    /// Tek bir saldırı yapar
+    /// Yeni bir silah ekler (Runtime'da)
     /// </summary>
-    protected virtual void Attack()
+    public virtual void AddWeapon(Weapon newWeapon)
     {
-        if (currentWeapon == null || isDead)
+        if (newWeapon == null)
+        {
+            Debug.LogWarning("⚠️ Cannot add null weapon!");
             return;
+        }
+        if (weapons.Contains(weapons.FirstOrDefault(x => x.WeaponType == newWeapon.WeaponType))) return;
+        weapons.Add(newWeapon);
 
-        // Silahın hasar değerini güncelle
-        float totalDamage = baseDamage + attackDamage;
-        currentWeapon.UpdateItemDamage(totalDamage);
+        // Silahın hasarını güncelle
+        newWeapon.UpdateItemDamage(baseDamage + attackDamage);
 
-        // Silahı tetikle
-        currentWeapon.Trigger();
+        Debug.Log($"⚔️ {gameObject.name} added {newWeapon.WeaponType}! Total weapons: {weapons.Count}");
 
-        OnAttackPerformed();
+        OnWeaponAdded(newWeapon);
+
+        // Eğer attacking modundaysa otomatik tetikle
+        if (!isAttacking)
+        {
+            StartAttacking();
+        }
+    }
+
+    /// <summary>
+    /// Silah kaldırır
+    /// </summary>
+    public virtual void RemoveWeapon(Weapon weapon)
+    {
+        if (weapons.Remove(weapon))
+        {
+            Debug.Log($"🗑️ {gameObject.name} removed {weapon.WeaponType}! Remaining: {weapons.Count}");
+            OnWeaponRemoved(weapon);
+        }
+    }
+
+    /// <summary>
+    /// Tüm silahları temizler
+    /// </summary>
+    public virtual void ClearWeapons()
+    {
+        weapons.Clear();
+        Debug.Log($"🗑️ {gameObject.name} cleared all weapons!");
     }
 
     /// <summary>
@@ -245,9 +310,9 @@ public abstract class Character : MonoBehaviour
     }
 
     /// <summary>
-    /// Life steal hesaplar ve uygular
+    /// Life steal hesaplar ve uygular - Weapon'lardan çağrılır
     /// </summary>
-    protected virtual void ApplyLifeSteal(float damageDealt)
+    public virtual void ApplyLifeStealFromWeapon(float damageDealt)
     {
         if (lifeSteal > 0f)
         {
@@ -256,45 +321,12 @@ public abstract class Character : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Silah değiştirir
-    /// </summary>
-    public virtual void EquipWeapon(Weapon newWeapon)
-    {
-        if (newWeapon == null)
-            return;
-
-        // Eski silahı devre dışı bırak
-        if (currentWeapon != null)
-        {
-            currentWeapon.gameObject.SetActive(false);
-        }
-
-        currentWeapon = newWeapon;
-        currentWeapon.gameObject.SetActive(true);
-
-        // Silah hasarını güncelle
-        currentWeapon.UpdateItemDamage(baseDamage + attackDamage);
-
-        Debug.Log($"⚔️ {gameObject.name} equipped {newWeapon.name}");
-
-        OnWeaponEquipped(newWeapon);
-    }
-
     #region Virtual Methods (Override için)
 
     /// <summary>
     /// Stat güncellendiğinde çağrılır
     /// </summary>
     protected virtual void OnStatUpdated(StatType statType, float value)
-    {
-        // Override edilebilir
-    }
-
-    /// <summary>
-    /// Saldırı yapıldığında çağrılır
-    /// </summary>
-    protected virtual void OnAttackPerformed()
     {
         // Override edilebilir
     }
@@ -324,9 +356,17 @@ public abstract class Character : MonoBehaviour
     }
 
     /// <summary>
-    /// Silah takıldığında çağrılır
+    /// Silah eklendiğinde çağrılır
     /// </summary>
-    protected virtual void OnWeaponEquipped(Weapon weapon)
+    protected virtual void OnWeaponAdded(Weapon weapon)
+    {
+        // Override edilebilir
+    }
+
+    /// <summary>
+    /// Silah kaldırıldığında çağrılır
+    /// </summary>
+    protected virtual void OnWeaponRemoved(Weapon weapon)
     {
         // Override edilebilir
     }
@@ -340,6 +380,16 @@ public abstract class Character : MonoBehaviour
         // Collect range göster
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, collectRange);
+
+        // Her silahın menzilini göster
+        if (weapons != null)
+        {
+            Gizmos.color = Color.red;
+            foreach (var weapon in weapons)
+            {
+                Gizmos.DrawWireSphere(transform.position, weapon.AttackRange);
+            }
+        }
     }
 
     #endregion

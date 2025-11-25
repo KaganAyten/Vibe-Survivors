@@ -1,16 +1,28 @@
 ﻿using UnityEngine;
 
 /// <summary>
-/// Tüm silahlar için temel sınıf
+/// Tüm silahlar için temel soyut sınıf - MonoBehaviour değil!
+// Her silah kendi cooldown'unu yönetir ve owner karaktere referans tutar
 /// </summary>
-public class Weapon : MonoBehaviour
+[System.Serializable]
+public class Weapon
 {
+    [Header("Weapon Info")]
+    [SerializeField] protected WeaponType weaponType = WeaponType.None;
+    
     [Header("Weapon Stats")]
     [SerializeField] protected float itemDamage = 10f;
     [SerializeField] protected float attackRange = 5f;
+    [SerializeField] protected float cooldown = 1f; // Silahın kendi cooldown'u (attack speed'den bağımsız)
 
-    [Header("Debug")]
-    [SerializeField] protected bool showDebugGizmos = true;
+    // Runtime values
+    [SerializeField] protected float currentCooldown = 0f;
+    protected Character owner; // Silahın sahibi (serialize edilmez)
+
+    /// <summary>
+    /// Silahın türü
+    /// </summary>
+    public WeaponType WeaponType => weaponType;
 
     /// <summary>
     /// Silahın mevcut hasar değeri
@@ -23,13 +35,130 @@ public class Weapon : MonoBehaviour
     public float AttackRange => attackRange;
 
     /// <summary>
-    /// Silahın tetiklenme fonksiyonu - menzil içindeki IDamageable nesnelere hasar verir
-    /// Virtual olduğu için türetilen sınıflarda özelleştirilebilir
+    /// Silahın cooldown süresi
     /// </summary>
-    public virtual void Trigger()
+    public float Cooldown => cooldown;
+
+    /// <summary>
+    /// Silahın sahibi
+    /// </summary>
+    public Character Owner => owner;
+
+    /// <summary>
+    /// Silahın tetiklenmeye hazır olup olmadığı
+    /// </summary>
+    public bool IsReady => currentCooldown <= 0f;
+
+    /// <summary>
+    /// Weapon constructor - Her weapon oluşturulduğunda çağrılır
+    /// </summary>
+    /// <param name="owner">Silahın sahibi olan karakter</param>
+    public Weapon(Character owner)
     {
+        this.owner = owner;
+        Initialize();
+    }
+
+    /// <summary>
+    /// Silahın başlangıç ayarları - Override edilebilir
+    /// </summary>
+    protected virtual void Initialize()
+    {
+        currentCooldown = 0f;
+    }
+
+    /// <summary>
+    /// Her frame cooldown'u günceller - Character'dan çağrılır
+    /// </summary>
+    /// <param name="deltaTime">Time.deltaTime</param>
+    public void UpdateCooldownTimer(float deltaTime)
+    {
+        if (currentCooldown > 0f)
+        {
+            currentCooldown -= deltaTime;
+        }
+    }
+
+    /// <summary>
+    /// Silahı tetikler - cooldown kontrolü ile
+    /// </summary>
+    public void TryTrigger()
+    {
+        if (!IsReady || owner == null || owner.IsDead)
+            return;
+
+        // Tetikle
+        Trigger();
+
+        // Cooldown'u başlat
+        currentCooldown = cooldown;
+    }
+
+    /// <summary>
+    /// Silahın asıl tetikleme mantığı - Her weapon kendi şekilde override eder
+    /// </summary>
+    protected virtual void Trigger() { }
+
+    /// <summary>
+    /// Silahın hasar değerini günceller
+    /// </summary>
+    /// <param name="newDamage">Yeni hasar değeri</param>
+    public void UpdateItemDamage(float newDamage)
+    {
+        itemDamage = Mathf.Max(0f, newDamage);
+        OnStatsUpdated();
+    }
+
+    /// <summary>
+    /// Silahın menzil değerini günceller
+    /// </summary>
+    /// <param name="newRange">Yeni menzil değeri</param>
+    public void UpdateAttackRange(float newRange)
+    {
+        attackRange = Mathf.Max(0f, newRange);
+        OnStatsUpdated();
+    }
+
+    /// <summary>
+    /// Silahın cooldown değerini günceller
+    /// </summary>
+    /// <param name="newCooldown">Yeni cooldown değeri</param>
+    public void SetCooldown(float newCooldown)
+    {
+        cooldown = Mathf.Max(0.1f, newCooldown);
+        OnStatsUpdated();
+    }
+
+    /// <summary>
+    /// Visual efekti tetikler - Particle System'i Play() yapar, instantiate etmez!
+    /// </summary>
+    protected virtual void PlayVisualEffect()
+    {
+        if (owner != null)
+        {
+            // Enum ile visual controller'a haber ver
+            WeaponVisualController.OnWeaponTriggered?.Invoke(weaponType, owner.transform.position, attackRange);
+        }
+    }
+
+    /// <summary>
+    /// Stat'lar güncellendiğinde çağrılır - override edilebilir
+    /// </summary>
+    protected virtual void OnStatsUpdated()
+    {
+        // Override edilebilir
+    }
+
+    /// <summary>
+    /// Hasar verme mantığı - menzil içindeki IDamageable nesnelere hasar verir
+    /// </summary>
+    protected virtual void DealDamageInRange()
+    {
+        if (owner == null)
+            return;
+
         // Menzil içindeki tüm collider'ları bul
-        Collider[] hitColliders = Physics.OverlapSphere(transform.position, attackRange);
+        Collider[] hitColliders = Physics.OverlapSphere(owner.transform.position, attackRange);
 
         foreach (Collider hitCollider in hitColliders)
         {
@@ -41,72 +170,17 @@ public class Weapon : MonoBehaviour
                 // Hasar ver
                 damageable.TakeDamage(itemDamage);
 
-                // Hasar verme efekti (türetilen sınıflarda override edilebilir)
+                // Hasar verme efekti
                 OnDamageDealt(hitCollider.gameObject);
             }
         }
-
-        // Tetikleme efekti (türetilen sınıflarda override edilebilir)
-        OnTrigger();
     }
 
     /// <summary>
-    /// Silahın hasar değerini günceller
+    /// Hasar verildiğinde çağrılır - override edilebilir
     /// </summary>
-    /// <param name="newDamage">Yeni hasar değeri</param>
-    public void UpdateItemDamage(float newDamage)
-    {
-        itemDamage = Mathf.Max(0f, newDamage); // Negatif olamaz
-        OnStatsUpdated();
-    }
-
-    /// <summary>
-    /// Silahın menzil değerini günceller
-    /// </summary>
-    /// <param name="newRange">Yeni menzil değeri</param>
-    public void UpdateAttackRange(float newRange)
-    {
-        attackRange = Mathf.Max(0f, newRange); // Negatif olamaz
-        OnStatsUpdated();
-    }
-
-    /// <summary>
-    /// Tetikleme sırasında çağrılır - türetilen sınıflarda özelleştirilebilir
-    /// Örnek: Ses efekti, parçacık efekti vb.
-    /// </summary>
-    protected virtual void OnTrigger()
-    {
-        // Türetilen sınıflarda özelleştirilebilir
-    }
-
-    /// <summary>
-    /// Hasar verildiğinde çağrılır - türetilen sınıflarda özelleştirilebilir
-    /// Örnek: Hit efekti, ses efekti vb.
-    /// </summary>
-    /// <param name="target">Hasar alan hedef</param>
     protected virtual void OnDamageDealt(GameObject target)
     {
-        // Türetilen sınıflarda özelleştirilebilir
-    }
-
-    /// <summary>
-    /// Stat'lar güncellendiğinde çağrılır - türetilen sınıflarda özelleştirilebilir
-    /// Örnek: UI güncelleme, efekt değişikliği vb.
-    /// </summary>
-    protected virtual void OnStatsUpdated()
-    {
-        // Türetilen sınıflarda özelleştirilebilir
-    }
-
-    /// <summary>
-    /// Menzil gösterimi için Gizmos
-    /// </summary>
-    protected virtual void OnDrawGizmosSelected()
-    {
-        if (showDebugGizmos)
-        {
-            Gizmos.color = Color.red;
-            Gizmos.DrawWireSphere(transform.position, attackRange);
-        }
+        // Override edilebilir
     }
 }
