@@ -38,12 +38,6 @@ public class Player : Character
     protected override void OnStatUpdated(StatType statType, float value)
     {
         Debug.Log($"?? Player stat updated: {statType} by {value}");
-
-        // Attack speed güncellenirse silah?n animasyon süresini güncelle
-        if (statType == StatType.AttackSpeed)
-        {
-            UpdateWeaponAnimationSpeed();
-        }
     }
 
     protected override void OnAttackPerformed()
@@ -77,35 +71,10 @@ public class Player : Character
     {
         Debug.Log($"?? Player equipped {weapon.name}!");
 
-        // Yeni silah tak?l?nca animasyon süresini ayarla
-        UpdateWeaponAnimationSpeed();
-
         // Otomatik sald?r?y? ba?lat
         if (!isAttacking)
         {
             StartAttacking();
-        }
-    }
-
-    /// <summary>
-    /// Silah?n animasyon süresini attack speed'e göre ayarlar
-    /// Animasyon süresi = 1 / (attackSpeed * 2)
-    /// </summary>
-    private void UpdateWeaponAnimationSpeed()
-    {
-        if (currentWeapon == null)
-            return;
-
-        // Sword tipindeki silahlar için özel ayar
-        Sword sword = currentWeapon as Sword;
-        if (sword != null)
-        {
-            // Attack speed = 10 ? 1/10 = 0.1 saniye sald?r? aral???
-            // Animasyon süresi = 0.1 / 2 = 0.05 saniye
-            float animationDuration = (1f / attackSpeed) / 2f;
-            sword.SetSwingDuration(animationDuration);
-
-            Debug.Log($"? Weapon animation speed updated: {animationDuration:F3}s (Attack Speed: {attackSpeed})");
         }
     }
 

@@ -5,71 +5,39 @@
 /// </summary>
 public class Sword : Weapon
 {
-    [Header("Sword Animation")]
-    [SerializeField] private Transform weaponObject;
-    [SerializeField] private float swingDuration = 0.3f; // Animasyon süresi (saniye)
-
-    private bool isSwinging = false;
-    private float currentSwingTime = 0f;
-
-    // Rotasyon değerleri
-    private readonly Vector3 startRotation = new Vector3(90f, 0f, 90f);   // Başlangıç: x=90, y=0, z=90
-    private readonly Vector3 endRotation = new Vector3(90f, 0f, -90f);     // Bitiş: x=90, y=0, z=-90
+    [Header("Sword Effects")]
+    [SerializeField] private ParticleSystem attackParticles;
+    
+    [Header("Particle Scaling")]
+    [SerializeField] private float baseAttackRange = 2.5f;
+    [SerializeField] private float baseParticleSize = 2f;
+    
+    private float currentParticleSize;
 
     private void Awake()
     {
-        // Başlangıç rotasyonunu ayarla
-        if (weaponObject != null)
+        // Başlangıç particle size'ını sakla
+        if (attackParticles != null)
         {
-            weaponObject.localRotation = Quaternion.Euler(startRotation);
-        }
-    }
-
-    private void Update()
-    {
-        if (isSwinging)
-        {
-            AnimateSwing();
+            currentParticleSize = baseParticleSize;
+            UpdateParticleSize();
         }
     }
 
     protected override void OnTrigger()
     {
-        if (weaponObject != null && !isSwinging)
+        if (attackParticles != null)
         {
-            isSwinging = true;
-            currentSwingTime = 0f;
+            attackParticles.Play();
         }
     }
-
-    private void AnimateSwing()
+    private void Update()
     {
-        currentSwingTime += Time.deltaTime;
-        float progress = currentSwingTime / swingDuration;
-
-        if (progress <= 1f)
+        if(Input.GetKeyDown(KeyCode.K))
         {
-            // Başlangıçtan (90, 0, 90) bitişe (90, 0, -90) yumuşak geçiş
-            Vector3 currentRotation = Vector3.Lerp(startRotation, endRotation, progress);
-            weaponObject.localRotation = Quaternion.Euler(currentRotation);
-        }
-        else
-        {
-            // Animasyon bitti - başa dön
-            weaponObject.localRotation = Quaternion.Euler(startRotation);
-            isSwinging = false;
+            UpdateAttackRange(AttackRange + 0.5f);
         }
     }
-
-    /// <summary>
-    /// Animasyon süresini dışarıdan ayarlamak için
-    /// </summary>
-    /// <param name="duration">Yeni animasyon süresi</param>
-    public void SetSwingDuration(float duration)
-    {
-        swingDuration = Mathf.Max(0.05f, duration); // Minimum 0.05 saniye
-    }
-
     /// <summary>
     /// Hasar verildiğinde hit efekti
     /// </summary>
@@ -79,20 +47,30 @@ public class Sword : Weapon
     }
 
     /// <summary>
-    /// Stat güncellendiğinde
+    /// Stat güncellendiğinde - Attack range arttıkça particle size da artar
     /// </summary>
     protected override void OnStatsUpdated()
     {
         Debug.Log($"🔼 Sword stats updated - Damage: {ItemDamage}, Range: {AttackRange}");
+        UpdateParticleSize();
     }
 
-    // Kılıcı başlangıç pozisyonuna resetle (opsiyonel)
-    public void ResetWeaponRotation()
+    /// <summary>
+    /// Attack range'a orantılı olarak particle size'ı günceller
+    /// Formül: currentParticleSize = baseParticleSize * (currentRange / baseRange)
+    /// </summary>
+    private void UpdateParticleSize()
     {
-        if (weaponObject != null)
-        {
-            weaponObject.localRotation = Quaternion.Euler(startRotation);
-            isSwinging = false;
-        }
+        if (attackParticles == null)
+            return;
+
+        // Orantılı hesaplama: baseParticleSize (2) ile baseAttackRange (2.5) arasındaki oran
+        currentParticleSize = baseParticleSize * (AttackRange / baseAttackRange);
+
+        // Particle System'deki main module'ü güncelle
+        ParticleSystem.MainModule mainModule = attackParticles.main;
+        mainModule.startSize = currentParticleSize;
+
+        Debug.Log($"🎯 Particle size updated: {currentParticleSize:F2} (Range: {AttackRange})");
     }
 }
